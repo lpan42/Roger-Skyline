@@ -70,6 +70,11 @@ sudo service netfilter-persistent start
 sudo iptables -L
 # create new a default config file
 sudo vim /etc/network/if-pre-up.d/iptables
+(TCP (Transmission Control Protocol), UDP(User Datagram Protocol)
+DUP throws out all the error-checking stuff.
+Losing all this overhead means the devices can communicate more quickly.
+UDP is used when speed is desirable and error correction isn’t necessary. 
+For example, UDP is frequently used for live broadcasts and online games.)
 
 #!/bin/bash
 
@@ -110,10 +115,71 @@ iptables -A OUTPUT 	-p tcp		--dport	80			-j ACCEPT
 # HTTPS
 iptables -A OUTPUT	-p tcp		--dport	443			-j ACCEPT
 
-# Ping
+# Ping(Ping uses the Internet Control Message Protocol (ICMP) Echo function)
 iptables -A OUTPUT	-p icmp		--icmp-type echo-request	-j ACCEPT
 iptables -A INPUT	-p icmp		--icmp-type echo-reply		-j ACCEPT
 
 # Already established connections
 iptables -A INPUT	-m conntrack	--ctstate ESTABLISHED,RELATED	-j ACCEPT
 iptables -A OUTPUT	-m conntrack	--ctstate ESTABLISHED,RELATED	-j ACCEPT
+
+:::::::::
+:: DOS ::
+:::::::::
+
+## You have to set a DOS (Denial Of Service Attack) protection on your open ports of your VM.
+(ref: https://www.scaleway.com/en/docs/protect-server-fail2ban/
+https://www.supinfo.com/articles/single/2660-proteger-votre-vps-apache-avec-fail2ban)
+# install
+sudo apt install fail2ban
+
+# By default Fail2ban keeps all the configuration files in /etc/fail2ban/ directory. 
+# The main configuration file is jail.conf, it contains a set of pre-defined filters. 
+# Override it by creating a new configuration file jail.local inside /etc/fail2ban/ directory.
+cd /etc/fail2ban
+sudo cp jail.conf jail.local
+sudo vim jail.local
+
+# in SSH SERVERS SECTION, 
+replace all port = ssh by port = 2222
+# jails HTTP servers
+[apache]
+enabled  = true
+port     = http,https
+filter   = apache-auth
+logpath  = /var/log/apache2/*error.log
+maxretry = 3
+bantime  = 600
+ignoreip = 10.13.42.42
+
+# DOS protection
+[apache-dos]
+
+enabled  = true
+port     = http,https
+filter   = apache-dos
+logpath  = /var/log/apache2/access.log
+bantime  = 600
+maxretry = 300
+findtime = 300
+action   = iptables[name=HTTP, port=http, protocol=tcp]
+ignoreip = 10.13.42.42
+
+# ADD THE FOLLOWING LINES TO THE SECTIONS [apache-badbots] [apache-noscript] [apache-overflows]
+
+enabled  = true
+filter   = section-name
+logpath  = /var/log/apache2/*error.log
+ignoreip = 10.13.42.42
+# save and exit
+# Create apache-dos.conf file in filters.d folder:
+cd /etc/fail2ban/filters.d/
+sudo vim apache-dos.conf
+
+# Add the following :
+[Definition] 
+failregex = ^ <HOST> -. * "(GET | POST). *
+ignoreregex =
+# save and exit
+# restart the service
+sudo service fail2ban restart
