@@ -42,7 +42,7 @@ sudo systemctl status ssh
 (check ssh, if not install) sudo apt install openssh-server
 sudo vi /etc/ssh/sshd_config
 uncomment Port 22 and replay by 2222
-uncomment PasswordAuthentication yes
+uncomment PasswordAuthentication change to no
 Uncomment PermitRootLogin and replace prohibit-password by no
 sudo service sshd restart
 
@@ -77,14 +77,14 @@ UDP is used when speed is desirable and error correction isn’t necessary.
 For example, UDP is frequently used for live broadcasts and online games.)
 
 #!/bin/bash
-
+<!-- 
 # Reset rules
 iptables		-F
 iptables		-X
 iptables -t nat		-F
 iptables -t nat		-X
 iptables -t mangle	-F
-iptables -t mangle	-X
+iptables -t mangle	-X -->
 
 # Drop everything as default behavior
 iptables -P INPUT	DROP
@@ -122,6 +122,11 @@ iptables -A INPUT	-p icmp		--icmp-type echo-reply		-j ACCEPT
 # Already established connections
 iptables -A INPUT	-m conntrack	--ctstate ESTABLISHED,RELATED	-j ACCEPT
 iptables -A OUTPUT	-m conntrack	--ctstate ESTABLISHED,RELATED	-j ACCEPT
+
+# apply
+sudo chmod +x /etc/network/if-pre-up.d/iptables
+sudo /etc/network/if-pre-up.d/iptables
+sudo iptables -L
 
 :::::::::
 :: DOS ::
@@ -183,3 +188,27 @@ ignoreregex =
 # save and exit
 # restart the service
 sudo service fail2ban restart
+# check status
+sudo fail2ban-client status sshd
+
+
+:::::::::::::::::::::
+:: Scan protection ::
+:::::::::::::::::::::
+
+## You have to set a protection against scans on your VM’s open ports.
+https://wiki.debian-fr.xyz/Portsentry
+https://en-wiki.ikoula.com/en/To_protect_against_the_scan_of_ports_with_portsentry
+# Installing protection against port scanning
+sudo apt install portsentry
+sudo /etc/init.d/portsentry stop
+cd /etc/default
+sudo vim portsentry
+    TCP_MODE="atcp"
+    UDP_MODE="audp"
+sudo vim /etc/portsentry/portsentry.conf
+    BLOCK_UDP="1"
+    BLOCK_TCP="1"
+sudo service portsentry restart
+
+# to check
