@@ -70,6 +70,7 @@ sudo service netfilter-persistent start
 sudo iptables -L
 # create new a default config file
 sudo vim /etc/network/if-pre-up.d/iptables
+
 (TCP (Transmission Control Protocol), UDP(User Datagram Protocol)
 DUP throws out all the error-checking stuff.
 Losing all this overhead means the devices can communicate more quickly.
@@ -199,6 +200,7 @@ sudo fail2ban-client status sshd
 ## You have to set a protection against scans on your VM’s open ports.
 https://wiki.debian-fr.xyz/Portsentry
 https://en-wiki.ikoula.com/en/To_protect_against_the_scan_of_ports_with_portsentry
+https://sharadchhetri.com/2013/06/15/how-to-protect-from-port-scanning-and-smurf-attack-in-linux-server-by-iptables/
 # Installing protection against port scanning
 sudo apt install portsentry
 sudo /etc/init.d/portsentry stop
@@ -211,4 +213,147 @@ sudo vim /etc/portsentry/portsentry.conf
     BLOCK_TCP="1"
 sudo service portsentry restart
 
+sudo vim /etc/network/if-pre-up.d/iptables
+# Protecting portscans
+# Attacking IP will be locked for 24 hours (3600 x 24 = 86400 Seconds)
+iptables -A INPUT -m recent --name portscan --rcheck --seconds 86400 -j DROP
+iptables -A FORWARD -m recent --name portscan --rcheck --seconds 86400 -j DROP
+
+# These rules add scanners to the portscan list, and log the attempt.
+iptables -A INPUT -p tcp -m tcp --dport 139 -m recent --name portscan --set -j LOG --log-prefix "portscan:"
+iptables -A INPUT -p tcp -m tcp --dport 139 -m recent --name portscan --set -j DROP
+
 # to check
+sudo service netfilter-persistent reload
+
+## Stop the services you don’t need for this project.
+# Check running services
+sudo systemctl list-unit-files --state=enabled
+
+autovt@.service #Necessary for using virtual terminals
+console-setup.service #Configuration for the console
+cron.service #Scheduled tasks
+fail2ban.service #Protection against DOS
+getty@.service #Necessary for login
+keyboard-setup.service #Configuration for the keyboard
+netfilter-persistent.service
+networking.service #Network
+rsyslog.service 
+ssh.service #Needed for SSH connection
+sshd.service #Needed for SSH connection
+syslog.service  
+
+# Disable the rest :
+sudo systemctl disable service_name
+
+::::::::::::
+:: script ::
+::::::::::::
+
+## Create a script that updates all the sources of package, 
+## then your packages and which logs the whole in a file named /var/log/update_script.log. 
+## Create a scheduled task for this script once a week at 4AM and every time the machine reboots.
+touch /var/log/update_script.log
+
+# write the updating script AND to log the whole updating process in the logfile
+vim /update_script.sh
+
+#!/bin/bash
+
+date >> /var/log/update_script.log                    # date of update
+apt-get -y -q update >> /var/log/update_script.log
+apt-get -y -q upgrade >> /var/log/update_script.log
+echo "\n" >> /var/log/update_script.log               # \n between each update
+
+crontab -e
+# At the end of the file, to set the update at 4 am every week :
+
+# minute hour dayofmonth month dayofweek command
+# Update every week at 4 am
+0 4 * * 1 /bin/sh /root/autoupdate.sh
+
+# Update at every reboot
+@reboot /bin/sh /root/autoupdate.sh
+
+## Make a script to monitor changes of the /etc/crontab file and sends an email to root if it has been modified. 
+## Create a scheduled script task every day at midnight.
+
+apt-get install mailutils
+touch cronchanges.sh
+vim /etc/aliases
+# Make sure all the mails go to root and don't get redirected :
+
+mailer-daemon: postmaster
+postmaster: root
+nobody: root
+hostmaster: root
+usenet: root
+news: root
+webmaster: root
+www: root
+ftp: root
+abuse: root
+noc: root
+security: root
+root: root
+
+cd
+sudo vim cronchanges.sh
+#!/bin/sh
+
+diff /etc/crontab /etc/current > /dev/null 2> /dev/null
+if [ $? -ne 0  ]
+then
+	echo "The crontab file has been modified\n" | mail -s "Crontab" root@localhost
+	cp /etc/crontab /etc/current
+fi
+# Then reboot and relog as root
+
+reboot
+# To add the script to the crontab :
+
+crontab -e
+
+0 0 * * * /bin/sh /root/cronchanges.sh
+
+
+
+::::::::::::
+:: web    ::
+::::::::::::
+## You have to set a web server who should BE available on the VM’s IP or an host (init.login.com for exemple). 
+## About the packages of your web server, you can choose between Nginx and Apache. 
+## You have to set a self-signed SSL on all of your services.
+https://www.digitalocean.com/community/tutorials/how-to-create-a-ssl-certificate-on-apache-for-debian-8
+https://www.linode.com/docs/security/ssl/ssl-apache2-debian-ubuntu/
+# First, enable the SSL module of apache2 then reload the service
+sudo a2enmod ssl
+sudo service apache2 start
+# Create a Self-Signed SSL Certificate
+# need to create a directory where we'll put our certificate and private key.
+sudo mkdir /etc/apache2/ssl
+# request a new certificate and sign it
+# first generate the certificate and private key
+# -days number of days the certificate will be valid 
+# -keyout path to our generated key, here /etc/apache2/ssl/apache.key 
+# -out path to our generated certificate, here /etc/apache2/ssl/apache.crt
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/apache2/ssl/apache.key -out /etc/apache2/ssl/apache.crt
+# Set the file permissions to protect your private key and certificate.
+sudo chmod 600 /etc/apache2/ssl/*
+# create own website configuration file
+cd /etc/apache2/sites-available/
+sudo touch for_rs.conf
+# create the folder for html pages
+cd /var/www/html/     # Go to folder where all available websites html folders are
+sudo mkdir for_rs      # Create a folder for our website
+cd for_rs
+sudo touch index.html # Create homepage file
+
+# disable the default websites and enable ours to make sure it is the only enabled website 
+# (there should be 3 available websites, 000-default, default-ssl and for_rs.
+sudo a2ensite for_rs.conf  # Enable our website configuration file
+sudo a2dissite            # Disable first default website
+  000-default
+sudo a2dissite            # Disable second default website
+  default-ssl
+sudo systemctl reload apache2 # Reload apache service
