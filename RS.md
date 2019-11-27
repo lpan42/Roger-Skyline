@@ -4,8 +4,8 @@ apt-get install sudo git make vim net-tools
 # add user to sudoers
 usermod -aG sudo roger
 # go back to your non-root user and use sudo when you need root privileges
-
-
+# Check if user can do sudo operations
+sudo fdisk -l
 
 # == Network and security part == #
 
@@ -25,6 +25,8 @@ replace dhcp by static
     netmask         255.255.255.252
     broadcast 		10.13.255.255
 
+sudo reboot
+
 :::::::::	
 :: SSH ::
 :::::::::
@@ -41,7 +43,7 @@ server side:
 sudo systemctl status ssh 
 (check ssh, if not install) sudo apt install openssh-server
 sudo vi /etc/ssh/sshd_config
-uncomment Port 22 and replay by 2222
+uncomment Port 22 and replay by 24
 uncomment PasswordAuthentication change to no
 Uncomment PermitRootLogin and replace prohibit-password by no
 sudo service sshd restart
@@ -50,9 +52,10 @@ Client side:
 # Generate a publickey to access VM via SSH
 ssh-keygen
 # Copy the publickey into the VM publickeys file
-ssh-copy-id -i id_rsa.pub roger@10.13.42.42 -p 2222
+cd .ssh/
+ssh-copy-id -i id_rsa.pub roger@10.13.42.42 -p 24
 # connect
-ssh roger@10.13.42.42 -p 2222
+ssh roger@10.13.42.42 -p 24
 
 ::::::::::::::
 :: Firewall ::
@@ -78,15 +81,6 @@ UDP is used when speed is desirable and error correction isn’t necessary.
 For example, UDP is frequently used for live broadcasts and online games.)
 
 #!/bin/bash
-<!-- 
-# Reset rules
-iptables		-F
-iptables		-X
-iptables -t nat		-F
-iptables -t nat		-X
-iptables -t mangle	-F
-iptables -t mangle	-X -->
-
 # Drop everything as default behavior
 iptables -P INPUT	DROP
 iptables -P OUTPUT	DROP
@@ -104,21 +98,20 @@ iptables -A INPUT	-i lo						-j ACCEPT
 iptables -A OUTPUT	-o lo						-j ACCEPT
 
 # DNS
-iptables -A OUTPUT	-p tcp		--dport	53			-j ACCEPT
-iptables -A OUTPUT	-p udp		--dport	53			-j ACCEPT
+iptables -A INPUT	-p tcp	-m tcp	--dport	53			-j ACCEPT
+iptables -A INPUT	-p udp	-m udp	--dport	53			-j ACCEPT
 
 # SSH
-iptables -A INPUT	-p tcp		--dport	2222			-j ACCEPT
+iptables -A INPUT	-p tcp	-m tcp	--dport	24			-j ACCEPT
 
 # HTTP
-iptables -A OUTPUT 	-p tcp		--dport	80			-j ACCEPT
+iptables -A INPUT 	-p tcp	-m tcp	--dport	80			-j ACCEPT
 
 # HTTPS
-iptables -A OUTPUT	-p tcp		--dport	443			-j ACCEPT
+iptables -A INPUT	-p tcp	-m tcp	--dport	443			-j ACCEPT
 
-# Ping(Ping uses the Internet Control Message Protocol (ICMP) Echo function)
-iptables -A OUTPUT	-p icmp		--icmp-type echo-request	-j ACCEPT
-iptables -A INPUT	-p icmp		--icmp-type echo-reply		-j ACCEPT
+# Allow pings
+iptables -A OUTPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 
 # Already established connections
 iptables -A INPUT	-m conntrack	--ctstate ESTABLISHED,RELATED	-j ACCEPT
@@ -126,7 +119,8 @@ iptables -A OUTPUT	-m conntrack	--ctstate ESTABLISHED,RELATED	-j ACCEPT
 
 # apply
 sudo chmod +x /etc/network/if-pre-up.d/iptables
-sudo /etc/network/if-pre-up.d/iptables
+sudo bash /etc/network/if-pre-up.d/iptables
+sudo service netfilter-persistent reload
 sudo iptables -L
 
 :::::::::
@@ -147,7 +141,7 @@ sudo cp jail.conf jail.local
 sudo vim jail.local
 
 # in SSH SERVERS SECTION, 
-replace all port = ssh by port = 2222
+replace all port = ssh by port = 24
 # jails HTTP servers
 [apache]
 enabled  = true
@@ -198,10 +192,9 @@ sudo fail2ban-client status sshd
 :::::::::::::::::::::
 
 ## You have to set a protection against scans on your VM’s open ports.
-https://wiki.debian-fr.xyz/Portsentry
-https://en-wiki.ikoula.com/en/To_protect_against_the_scan_of_ports_with_portsentry
-https://sharadchhetri.com/2013/06/15/how-to-protect-from-port-scanning-and-smurf-attack-in-linux-server-by-iptables/
-# Installing protection against port scanning
+<!-- https://wiki.debian-fr.xyz/Portsentry
+https://en-wiki.ikoula.com/en/To_protect_against_the_scan_of_ports_with_portsentry -->
+<!-- # Installing protection against port scanning
 sudo apt install portsentry
 sudo /etc/init.d/portsentry stop
 cd /etc/default
@@ -211,8 +204,9 @@ sudo vim portsentry
 sudo vim /etc/portsentry/portsentry.conf
     BLOCK_UDP="1"
     BLOCK_TCP="1"
-sudo service portsentry restart
+sudo service portsentry restart -->
 
+https://sharadchhetri.com/2013/06/15/how-to-protect-from-port-scanning-and-smurf-attack-in-linux-server-by-iptables/
 sudo vim /etc/network/if-pre-up.d/iptables
 # Protecting portscans
 # Attacking IP will be locked for 24 hours (3600 x 24 = 86400 Seconds)
@@ -222,7 +216,8 @@ iptables -A FORWARD -m recent --name portscan --rcheck --seconds 86400 -j DROP
 # These rules add scanners to the portscan list, and log the attempt.
 iptables -A INPUT -p tcp -m tcp --dport 139 -m recent --name portscan --set -j LOG --log-prefix "portscan:"
 iptables -A INPUT -p tcp -m tcp --dport 139 -m recent --name portscan --set -j DROP
-
+iptables -A FORWARD -p tcp -m tcp --dport 139 -m recent --name portscan --set -j LOG --log-prefix "portscan:"
+iptables -A FORWARD -p tcp -m tcp --dport 139 -m recent --name portscan --set -j DROP
 # to check
 sudo service netfilter-persistent reload
 
@@ -344,9 +339,11 @@ sudo chmod 600 /etc/apache2/ssl/*
 cd /etc/apache2/sites-available/
 sudo touch for_rs.conf
 # create the folder for html pages
-cd /var/www/html/     # Go to folder where all available websites html folders are
-sudo mkdir for_rs      # Create a folder for our website
-cd for_rs
+cd /var/www/html/    # Go to folder where all available websites html folders are
+sudo mkdir roger      # Create a folder for our website
+cd roger
+sudo mkdir html
+cd html
 sudo touch index.html # Create homepage file
 
 # disable the default websites and enable ours to make sure it is the only enabled website 
@@ -357,3 +354,25 @@ sudo a2dissite            # Disable first default website
 sudo a2dissite            # Disable second default website
   default-ssl
 sudo systemctl reload apache2 # Reload apache service
+
+cd /var/www/html/roger
+sudo mkdir log
+cd log
+sudo touch error.log
+sudo touch access.log
+cd /etc/apache2/sites-available/roger.conf
+    <VirtualHost *:80>
+        ServerName 10.13.42.42
+        DocumentRoot /var/www/html/roger/html
+        Redirect permanent /secure https://10.13.42.42
+    </VirtualHost>
+    <VirtualHost *:443>
+            SSLEngine On
+            SSLCertificateFile /etc/apache2/ssl/apache.crt
+            SSLCertificateKeyFile /etc/apache2/ssl/apache.key
+            ServerAdmin lpan@student.42.fr
+            ServerName 10.13.42.42
+            DocumentRoot /var/www/html/roger/html
+            ErrorLog /var/www/html/roger/log/error.log
+            CustomLog /var/www/html/roger/log/access.log combined
+    </VirtualHost>
