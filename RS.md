@@ -2,7 +2,7 @@
 # Logged as root, install sudo, git, make, vim, net_tools(for ifconfig)
 apt-get install sudo git make vim net-tools
 # add user to sudoers
-usermod -aG sudo roger
+/usr/sbin/usermod -aG sudo roger
 # go back to your non-root user and use sudo when you need root privileges
 # Check if user can do sudo operations
 sudo fdisk -l
@@ -42,8 +42,8 @@ connecting an SSH client application with an SSH server.)
 server side:
 sudo systemctl status ssh 
 (check ssh, if not install) sudo apt install openssh-server
-sudo vi /etc/ssh/sshd_config
-uncomment Port 22 and replay by 24
+sudo vim /etc/ssh/sshd_config
+uncomment Port 22 and replay by 2222
 uncomment PasswordAuthentication change to no
 Uncomment PermitRootLogin and replace prohibit-password by no
 sudo service sshd restart
@@ -53,9 +53,9 @@ Client side:
 ssh-keygen
 # Copy the publickey into the VM publickeys file
 cd .ssh/
-ssh-copy-id -i id_rsa.pub roger@10.13.42.42 -p 24
+ssh-copy-id -i id_rsa.pub roger@10.13.42.42 -p 2222
 # connect
-ssh roger@10.13.42.42 -p 24
+ssh roger@10.13.42.42 -p 2222
 
 ::::::::::::::
 :: Firewall ::
@@ -82,9 +82,7 @@ For example, UDP is frequently used for live broadcasts and online games.)
 
 #!/bin/bash
 # Drop everything as default behavior
-iptables -P INPUT	DROP
-iptables -P OUTPUT	DROP
-iptables -P FORWARD 	DROP
+iptables -F
 
 # Loopback
 (The loopback device is a special, virtual network interface 
@@ -94,15 +92,15 @@ and to connect to servers running on the local machine.
 任何送到该接口的网络数据报文都会被认为是送往设备自身的。
 大多数平台都支持使用这种接口来模拟真正的接口。)
 
-iptables -A INPUT	-i lo						-j ACCEPT
-iptables -A OUTPUT	-o lo						-j ACCEPT
+iptables -A INPUT	-i lo -p all				-j ACCEPT
+iptables -A OUTPUT	-o lo               		-j ACCEPT
 
 # DNS
 iptables -A INPUT	-p tcp	-m tcp	--dport	53			-j ACCEPT
-iptables -A INPUT	-p udp	-m udp	--dport	53			-j ACCEPT
+iptables -A OUTPUT	-p udp	-m udp	--dport	53			-j ACCEPT
 
 # SSH
-iptables -A INPUT	-p tcp	-m tcp	--dport	24			-j ACCEPT
+iptables -A INPUT	-p tcp	-m tcp	--dport	2222			-j ACCEPT
 
 # HTTP
 iptables -A INPUT 	-p tcp	-m tcp	--dport	80			-j ACCEPT
@@ -112,10 +110,11 @@ iptables -A INPUT	-p tcp	-m tcp	--dport	443			-j ACCEPT
 
 # Allow pings
 iptables -A OUTPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
+iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 
 # Already established connections
-iptables -A INPUT	-m conntrack	--ctstate ESTABLISHED,RELATED	-j ACCEPT
-iptables -A OUTPUT	-m conntrack	--ctstate ESTABLISHED,RELATED	-j ACCEPT
+iptables -A INPUT	-m state	--state ESTABLISHED,RELATED	-j ACCEPT
+iptables -A OUTPUT	-m state	--state ESTABLISHED,RELATED	-j ACCEPT
 
 # apply
 sudo chmod +x /etc/network/if-pre-up.d/iptables
@@ -131,7 +130,7 @@ sudo iptables -L
 (ref: https://www.scaleway.com/en/docs/protect-server-fail2ban/
 https://www.supinfo.com/articles/single/2660-proteger-votre-vps-apache-avec-fail2ban)
 # install
-sudo apt install fail2ban
+sudo apt-get install fail2ban apache2
 
 # By default Fail2ban keeps all the configuration files in /etc/fail2ban/ directory. 
 # The main configuration file is jail.conf, it contains a set of pre-defined filters. 
@@ -140,8 +139,10 @@ cd /etc/fail2ban
 sudo cp jail.conf jail.local
 sudo vim jail.local
 
+# default
+ignoreip =  127.0.0.1/8 10.13.42.42
 # in SSH SERVERS SECTION, 
-replace all port = ssh by port = 24
+replace all port = ssh by port = 2222
 # jails HTTP servers
 [apache]
 enabled  = true
@@ -150,6 +151,7 @@ filter   = apache-auth
 logpath  = /var/log/apache2/*error.log
 maxretry = 3
 bantime  = 600
+findtime = 600
 ignoreip = 10.13.42.42
 
 # DOS protection
@@ -170,6 +172,9 @@ ignoreip = 10.13.42.42
 enabled  = true
 filter   = section-name
 logpath  = /var/log/apache2/*error.log
+bantime = 600
+maxretry = 3
+findtime = 600
 ignoreip = 10.13.42.42
 # save and exit
 # Create apache-dos.conf file in filters.d folder:
@@ -186,15 +191,23 @@ sudo service fail2ban restart
 # check status
 sudo fail2ban-client status sshd
 
+# To check if firewall rule applied
+# Try to connect via ssh to the machine with wrong login/password until blocked
+# To unblock IP address, go back to the VM
+sudo fail2ban-client status sshd
+# to check that your ipaddress is in the banned section
+sudo fail2ban-client set sshd unbanip your_ip_address
+# then restart fail2ban service
+sudo service fail2ban restart
 
 :::::::::::::::::::::
 :: Scan protection ::
 :::::::::::::::::::::
 
 ## You have to set a protection against scans on your VM’s open ports.
-<!-- https://wiki.debian-fr.xyz/Portsentry
-https://en-wiki.ikoula.com/en/To_protect_against_the_scan_of_ports_with_portsentry -->
-<!-- # Installing protection against port scanning
+https://wiki.debian-fr.xyz/Portsentry
+https://en-wiki.ikoula.com/en/To_protect_against_the_scan_of_ports_with_portsentry
+# Installing protection against port scanning
 sudo apt install portsentry
 sudo /etc/init.d/portsentry stop
 cd /etc/default
@@ -204,7 +217,7 @@ sudo vim portsentry
 sudo vim /etc/portsentry/portsentry.conf
     BLOCK_UDP="1"
     BLOCK_TCP="1"
-sudo service portsentry restart -->
+sudo service portsentry restart
 
 https://sharadchhetri.com/2013/06/15/how-to-protect-from-port-scanning-and-smurf-attack-in-linux-server-by-iptables/
 sudo vim /etc/network/if-pre-up.d/iptables
@@ -213,13 +226,24 @@ sudo vim /etc/network/if-pre-up.d/iptables
 iptables -A INPUT -m recent --name portscan --rcheck --seconds 86400 -j DROP
 iptables -A FORWARD -m recent --name portscan --rcheck --seconds 86400 -j DROP
 
+# Remove attacking IP after 24 hours
+iptables -A INPUT -m recent --name portscan --remove
+iptables -A FORWARD -m recent --name portscan --remove
+
 # These rules add scanners to the portscan list, and log the attempt.
 iptables -A INPUT -p tcp -m tcp --dport 139 -m recent --name portscan --set -j LOG --log-prefix "portscan:"
 iptables -A INPUT -p tcp -m tcp --dport 139 -m recent --name portscan --set -j DROP
 iptables -A FORWARD -p tcp -m tcp --dport 139 -m recent --name portscan --set -j LOG --log-prefix "portscan:"
 iptables -A FORWARD -p tcp -m tcp --dport 139 -m recent --name portscan --set -j DROP
 # to check
+sudo bash /etc/network/if-pre-up.d/iptables
 sudo service netfilter-persistent reload
+sudo iptables -L
+# To deleting your IP address from the denied hosts file
+sudo vim /etc/hosts.deny
+# we need to delete our ban from the iptables
+sudo iptables -D INPUT 1
+# then reboot
 
 ## Stop the services you don’t need for this project.
 # Check running services
@@ -237,6 +261,10 @@ rsyslog.service
 ssh.service #Needed for SSH connection
 sshd.service #Needed for SSH connection
 syslog.service  
+systemd-timesyncd.service    
+remote-fs.target             
+apt-daily-upgrade.timer      
+apt-daily.timer              
 
 # Disable the rest :
 sudo systemctl disable service_name
@@ -248,6 +276,7 @@ sudo systemctl disable service_name
 ## Create a script that updates all the sources of package, 
 ## then your packages and which logs the whole in a file named /var/log/update_script.log. 
 ## Create a scheduled task for this script once a week at 4AM and every time the machine reboots.
+su
 touch /var/log/update_script.log
 
 # write the updating script AND to log the whole updating process in the logfile
@@ -266,7 +295,6 @@ crontab -e
 # minute hour dayofmonth month dayofweek command
 # Update every week at 4 am
 0 4 * * 1 /bin/sh /root/autoupdate.sh
-
 # Update at every reboot
 @reboot /bin/sh /root/autoupdate.sh
 
@@ -277,7 +305,6 @@ apt-get install mailutils
 touch cronchanges.sh
 vim /etc/aliases
 # Make sure all the mails go to root and don't get redirected :
-
 mailer-daemon: postmaster
 postmaster: root
 nobody: root
@@ -303,8 +330,6 @@ then
 	cp /etc/crontab /etc/current
 fi
 # Then reboot and relog as root
-
-reboot
 # To add the script to the crontab :
 
 crontab -e
@@ -337,7 +362,7 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/apache2/ss
 sudo chmod 600 /etc/apache2/ssl/*
 # create own website configuration file
 cd /etc/apache2/sites-available/
-sudo touch for_rs.conf
+sudo touch roger.conf
 # create the folder for html pages
 cd /var/www/html/    # Go to folder where all available websites html folders are
 sudo mkdir roger      # Create a folder for our website
@@ -348,7 +373,7 @@ sudo touch index.html # Create homepage file
 
 # disable the default websites and enable ours to make sure it is the only enabled website 
 # (there should be 3 available websites, 000-default, default-ssl and for_rs.
-sudo a2ensite for_rs.conf  # Enable our website configuration file
+sudo a2ensite roger.conf  # Enable our website configuration file
 sudo a2dissite            # Disable first default website
   000-default
 sudo a2dissite            # Disable second default website
@@ -360,7 +385,7 @@ sudo mkdir log
 cd log
 sudo touch error.log
 sudo touch access.log
-cd /etc/apache2/sites-available/roger.conf
+sudo vim /etc/apache2/sites-available/roger.conf
     <VirtualHost *:80>
         ServerName 10.13.42.42
         DocumentRoot /var/www/html/roger/html
@@ -376,3 +401,4 @@ cd /etc/apache2/sites-available/roger.conf
             ErrorLog /var/www/html/roger/log/error.log
             CustomLog /var/www/html/roger/log/access.log combined
     </VirtualHost>
+sudo systemctl reload apache2
