@@ -487,5 +487,5 @@ copy the roger.vdi to goinfre and check shasum
 in VM, create a new machine 
 choose the existing virtual hard disk file
 and add the copied roger.vdi in goinfre to start the correction 
-
+dont forget to set the network as Bridged adaptor
 
