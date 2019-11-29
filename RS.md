@@ -463,3 +463,8 @@ git remote add deploy ssh://roger@10.13.42.42:2222/srv/git/roger.git/
 git remote -v
 # Remove remote
 git remote rm <destination>
+
+# Push to the server (and deploy)
+git add . 
+git commit -m "<message>"
+git push deploy master
