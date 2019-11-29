@@ -437,11 +437,11 @@ sudo chmod +x post-receive
 # Edit the /srv/git/roger.git/hooks/post-receive file content:
     #!/bin/sh
     # The production directory
-    TARGET="/srv/www/<your-app>"
+    TARGET="/var/www/html/roger"
     # A temporary directory for deployment
-    TEMP="/srv/tmp/<your-app>"
+    TEMP="/srv/tmp/roger"
     # The Git repo
-    REPO="/srv/git/<your-app>.git"
+    REPO="/srv/git/roger.git"
     # Deploy the content to the temporary directory
     mkdir -p $TEMP
     git --work-tree=$TEMP --git-dir=$REPO checkout -f
