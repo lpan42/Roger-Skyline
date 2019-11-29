@@ -479,13 +479,3 @@ git push deploy master
 turn VM off and dont turn it on again. 
 go to the path of the VM in sgoinfre
 shasum < roger.vdi > RS_result
-make a copy of roger.vdi and keep it save.
-remove the VM machine.
-
-for each correction:
-copy the roger.vdi to goinfre and check shasum
-in VM, create a new machine 
-choose the existing virtual hard disk file
-and add the copied roger.vdi in goinfre to start the correction 
-dont forget to set the network as Bridged adaptor
-
