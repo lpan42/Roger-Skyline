@@ -456,7 +456,7 @@ sudo chmod +x post-receive
     # with the temporary directory
     cd /
     rm -rf $TARGET
-    mv $TEMP $TARGET
+    cp $TEMP $TARGET
 
 
 # to the local computer
