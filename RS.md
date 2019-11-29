@@ -473,3 +473,11 @@ git remote rm <destination>
 git add . 
 git commit -m "<message>"
 git push deploy master
+
+
+# FINAL:
+turn VM off and dont turn it on again. 
+go to the path of the VM in sgoinfre
+shasum roger.vdi > RS_result
+clone at least three VM machine (linked clone) for the correction 
+
