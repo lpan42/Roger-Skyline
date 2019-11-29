@@ -458,4 +458,8 @@ cd /var/www/html/roger
 # Initialize git repo
 git init
 # Add the server repo as a remote called "deploy"
-git remote add deploy ssh://roger@10.13.42.42/srv/git/roger.git/
+git remote add deploy ssh://roger@10.13.42.42:2222/srv/git/roger.git/
+# to View current remotes
+git remote -v
+# Remove remote
+git remote rm <destination>
