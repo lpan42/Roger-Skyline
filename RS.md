@@ -402,3 +402,60 @@ sudo vim /etc/apache2/sites-available/roger.conf
             CustomLog /var/www/html/roger/log/access.log combined
     </VirtualHost>
 sudo systemctl reload apache2
+
+
+::::::::::::
+:: deploy ::
+::::::::::::
+https://medium.com/@francoisromain/vps-deploy-with-git-fea605f1303b
+
+# Create an empty Git repo
+sudo mkdir -p /srv/git/roger.git
+# Init the repo as an empty git repository
+cd /srv/git/roger.git
+sudo git init --bare
+# Set the permissions on the Git repo so that we can modify its content without sudo
+# Define group recursively to "users", on the directories
+sudo chgrp -R users .
+# Define permissions recursively, on the sub-directories 
+# g = group, + add rights, r = read, w = write, X = directories only
+# . = curent directory as a reference
+sudo chmod -R g+rwX .
+# Sets the setgid bit on all the directories
+# https://www.gnu.org/software/coreutils/manual/html_node/Directory-Setuid-and-Setgid.html
+sudo find . -type d -exec chmod g+s '{}' +
+# Make the directory a Git shared repo
+sudo git config core.sharedRepository group
+
+# Write a Git hook to deploy the code
+# Create the Git hook file
+cd /srv/git/roger.git/hooks
+# create a post-receive file
+sudo touch post-receive
+# make it executable 
+sudo chmod +x post-receive
+# Edit the /srv/git/roger.git/hooks/post-receive file content:
+    #!/bin/sh
+    # The production directory
+    TARGET="/srv/www/<your-app>"
+    # A temporary directory for deployment
+    TEMP="/srv/tmp/<your-app>"
+    # The Git repo
+    REPO="/srv/git/<your-app>.git"
+    # Deploy the content to the temporary directory
+    mkdir -p $TEMP
+    git --work-tree=$TEMP --git-dir=$REPO checkout -f
+    cd $TEMP
+    # Do stuffs, like npm install…
+    # Replace the production directory
+    # with the temporary directory
+    cd /
+    rm -rf $TARGET
+    mv $TEMP $TARGET
+
+
+cd /var/www/html/roger
+# Initialize git repo
+git init
+# Add the server repo as a remote called "deploy"
+git remote add deploy ssh://roger@10.13.42.42/srv/git/roger.git/
