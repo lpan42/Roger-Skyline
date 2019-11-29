@@ -248,7 +248,7 @@ sudo iptables -D INPUT 1
 ## Stop the services you don’t need for this project.
 # Check running services
 sudo systemctl list-unit-files --state=enabled
-
+apache2.service
 autovt@.service #Necessary for using virtual terminals
 console-setup.service #Configuration for the console
 cron.service #Scheduled tasks
@@ -277,10 +277,10 @@ sudo systemctl disable service_name
 ## then your packages and which logs the whole in a file named /var/log/update_script.log. 
 ## Create a scheduled task for this script once a week at 4AM and every time the machine reboots.
 su
-touch /var/log/update_script.log
+touch autoupdate.sh
+sudo vim autoupdate.sh
 
 # write the updating script AND to log the whole updating process in the logfile
-vim /update_script.sh
 
 #!/bin/bash
 
@@ -408,15 +408,19 @@ sudo systemctl reload apache2
 :: deploy ::
 ::::::::::::
 https://medium.com/@francoisromain/vps-deploy-with-git-fea605f1303b
+sudo mkdir -p /srv/tmp/
+sudo chgrp -R roger /srv/tmp/
+sudo chmod g+w /srv/tmp/
 
 # Create an empty Git repo
 sudo mkdir -p /srv/git/roger.git
 # Init the repo as an empty git repository
 cd /srv/git/roger.git
 sudo git init --bare
+
 # Set the permissions on the Git repo so that we can modify its content without sudo
-# Define group recursively to "users", on the directories
-sudo chgrp -R <roger> .
+# Define group recursively to "users"(roger), on the directories
+sudo chgrp -R roger .
 # Define permissions recursively, on the sub-directories 
 # g = group, + add rights, r = read, w = write, X = directories only
 # . = curent directory as a reference
@@ -426,6 +430,7 @@ sudo chmod -R g+rwX .
 sudo find . -type d -exec chmod g+s '{}' +
 # Make the directory a Git shared repo
 sudo git config core.sharedRepository group
+# need to change the permissions for all the related directory 
 
 # Write a Git hook to deploy the code
 # Create the Git hook file
@@ -437,7 +442,7 @@ sudo chmod +x post-receive
 # Edit the /srv/git/roger.git/hooks/post-receive file content:
     #!/bin/sh
     # The production directory
-    TARGET="/var/www/html/roger"
+    TARGET="/var/www/html/roger/html"
     # A temporary directory for deployment
     TEMP="/srv/tmp/roger"
     # The Git repo
