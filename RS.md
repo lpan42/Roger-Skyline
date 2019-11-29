@@ -416,7 +416,7 @@ cd /srv/git/roger.git
 sudo git init --bare
 # Set the permissions on the Git repo so that we can modify its content without sudo
 # Define group recursively to "users", on the directories
-sudo chgrp -R users .
+sudo chgrp -R <roger> .
 # Define permissions recursively, on the sub-directories 
 # g = group, + add rights, r = read, w = write, X = directories only
 # . = curent directory as a reference
@@ -454,7 +454,7 @@ sudo chmod +x post-receive
     mv $TEMP $TARGET
 
 
-cd /var/www/html/roger
+# to the local computer
 # Initialize git repo
 git init
 # Add the server repo as a remote called "deploy"
